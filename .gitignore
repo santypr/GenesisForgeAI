@@ -1,0 +1,74 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Node / JS / TS
+node_modules/
+dist/
+build/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# VS Code extension artifacts
+vscode-extension/.vscode-test/
+vscode-extension/out/
+vscode-extension/dist/
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.pdb
+*.cache
+*.nupkg
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub/
+.pub-cache/
+build/
+android/.gradle/
+ios/Pods/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Terraform / IaC
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+
+# Generated project registration/runtime
+.genesisforge/runtime/
+generated-projects/
