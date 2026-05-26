@@ -1,0 +1,36 @@
+{
+  "name": "genesisforgeai-extension",
+  "displayName": "GenesisForgeAI",
+  "description": "Minimal VS Code extension for GenesisForgeAI agents, skills, and docs orchestration.",
+  "version": "0.0.1",
+  "publisher": "santiago",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onCommand:genesisForge.initProject",
+    "onCommand:genesisForge.runAgent",
+    "onCommand:genesisForge.runSkill",
+    "onCommand:genesisForge.generateDocumentation",
+    "onCommand:genesisForge.createTaskFolder"
+  ],
+  "contributes": {
+    "commands": [
+      { "command": "genesisForge.initProject", "title": "GenesisForgeAI: Init Project" },
+      { "command": "genesisForge.runAgent", "title": "GenesisForgeAI: Run Agent" },
+      { "command": "genesisForge.runSkill", "title": "GenesisForgeAI: Run Skill" },
+      { "command": "genesisForge.generateDocumentation", "title": "GenesisForgeAI: Generate Documentation" },
+      { "command": "genesisForge.createTaskFolder", "title": "GenesisForgeAI: Create Task Folder" }
+    ],
+    "views": {
+      "explorer": [
+        { "id": "genesisForge.projectManifest", "name": "Project Manifest" },
+        { "id": "genesisForge.agents", "name": "Agents" },
+        { "id": "genesisForge.skills", "name": "Skills" },
+        { "id": "genesisForge.docsStatus", "name": "Documentation Status" }
+      ]
+    }
+  }
+}
