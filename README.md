@@ -30,7 +30,7 @@ What `init-project` does:
 
 1. Asks project questions (type, clean architecture, docs, CI/CD, tests, IaC)
 2. Generates base folders and copies templates
-3. Generates instruction/docs scaffolding and `project.json`
+3. Generates Copilot-compatible instruction, agent, skill, docs scaffolding and `project.json`
 4. Registers the project for the VS Code extension at `.genesisforge/registration.json`
 
 The script is idempotent: running it again updates generated metadata without duplicating folders.
@@ -56,9 +56,12 @@ The extension also exposes UI panels for:
 
 ## How Agents and Skills Work
 
-- Agents live in `/instructions/agents` and define role-driven orchestration contracts.
-- Skills live in `/instructions/skills` and define deterministic, composable reusable operations.
-- System governance is in `/instructions/system` for consistency and collaboration flow.
+- Always-on Copilot instructions live in `/.github/copilot-instructions.md`.
+- Always-on Claude instructions live in `/CLAUDE.md` (references `AGENTS.md`).
+- Shared multi-agent guidance lives in `/AGENTS.md`.
+- Custom agents live in `/.github/agents` (VS Code Copilot + GitHub.com) and `/.claude/agents` (Claude Code + VS Code). Both are generated from the same source in `/instructions/agents`.
+- Skills live in `/.github/skills/<skill-name>/SKILL.md` and `/.claude/skills/<skill-name>/SKILL.md`. Both are generated from `/instructions/skills`.
+- GenesisForgeAI sources these generated artifacts from `/instructions`.
 
 ## Documentation Generation
 
