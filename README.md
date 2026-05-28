@@ -39,8 +39,19 @@ The script is idempotent: running it again updates generated metadata without du
 
 Path: `/vscode-extension`
 
+Installable as VS Code extension:
+
+```bash
+cd vscode-extension
+npm install
+npm run package
+```
+
+Then in VS Code run `Extensions: Install from VSIX...` and select the generated `.vsix`.
+
 Commands:
 
+- `GenesisForgeAI`
 - `GenesisForgeAI: Init Project`
 - `GenesisForgeAI: Run Agent`
 - `GenesisForgeAI: Run Skill`

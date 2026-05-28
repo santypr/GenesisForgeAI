@@ -1,15 +1,40 @@
 {
   "name": "genesisforgeai-extension",
   "displayName": "GenesisForgeAI",
-  "description": "Minimal VS Code extension for GenesisForgeAI agents, skills, and docs orchestration.",
+  "description": "VS Code extension for GenesisForgeAI agents, skills, and automated project bootstrap.",
   "version": "0.0.1",
   "publisher": "santiago",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/santypr/GenesisForgeAI.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
+  "scripts": {
+    "sync:resources": "node ./scripts/sync-resources.js",
+    "postinstall": "npm run sync:resources",
+    "vscode:prepublish": "npm run sync:resources",
+    "package": "vsce package --no-yarn"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^2.27.0"
+  },
   "categories": ["Other"],
+  "files": [
+    "src/**",
+    "prompts/**",
+    "assets/**",
+    "scripts/**",
+    "resources/**",
+    "README.md",
+    "LICENSE.md",
+    "package.json"
+  ],
   "main": "./src/extension.js",
   "activationEvents": [
+    "onCommand:genesisForge.bootstrap",
     "onCommand:genesisForge.initProject",
     "onCommand:genesisForge.runAgent",
     "onCommand:genesisForge.runSkill",
@@ -18,6 +43,7 @@
   ],
   "contributes": {
     "commands": [
+      { "command": "genesisForge.bootstrap", "title": "GenesisForgeAI" },
       { "command": "genesisForge.initProject", "title": "GenesisForgeAI: Init Project" },
       { "command": "genesisForge.runAgent", "title": "GenesisForgeAI: Run Agent" },
       { "command": "genesisForge.runSkill", "title": "GenesisForgeAI: Run Skill" },
