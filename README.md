@@ -23,7 +23,7 @@ This repository provides:
 ## Run the Init Process
 
 ```bash
-bash /tmp/workspace/santypr/GenesisForgeAI/scripts/init-project.sh
+bash scripts/init-project.sh
 ```
 
 What `init-project` does:
@@ -39,12 +39,20 @@ The script is idempotent: running it again updates generated metadata without du
 
 Path: `/vscode-extension`
 
+Installable as VS Code extension:
+
+```bash
+cd vscode-extension
+npm install
+npm run package
+```
+
+Then in VS Code run `Extensions: Install from VSIX...` and select the generated `.vsix`.
+
 Commands:
 
-- `GenesisForgeAI: Setup Project` (Init or Migrate) ← **start here**
-  - Guides you to either bootstrap a new project or migrate an existing one
-- `GenesisForgeAI: Init Project` — bootstrap a new project from scratch
-- `GenesisForgeAI: Migrate Existing Project` — add dual-path agent/skill structure to an existing project
+- `GenesisForgeAI`
+- `GenesisForgeAI: Init Project`
 - `GenesisForgeAI: Run Agent`
 - `GenesisForgeAI: Run Skill`
 - `GenesisForgeAI: Generate Documentation`
