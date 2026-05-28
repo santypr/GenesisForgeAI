@@ -35,6 +35,7 @@ pnpm-debug.log*
 vscode-extension/.vscode-test/
 vscode-extension/out/
 vscode-extension/dist/
+vscode-extension/*.vsix
 
 # .NET
 bin/
