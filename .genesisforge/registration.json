@@ -1,0 +1,11 @@
+{
+  "projectName": "santypr-fluffy-spork",
+  "copilotInstructionsPath": ".github/copilot-instructions.md",
+  "claudeInstructionsPath": "CLAUDE.md",
+  "agentsManifestPath": "AGENTS.md",
+  "agentsPath": ".github/agents",
+  "claudeAgentsPath": ".claude/agents",
+  "skillsPath": ".github/skills",
+  "claudeSkillsPath": ".claude/skills",
+  "migratedAt": "2026-05-28T15:06:56Z"
+}

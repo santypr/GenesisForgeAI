@@ -23,7 +23,7 @@ This repository provides:
 ## Run the Init Process
 
 ```bash
-bash /tmp/workspace/santypr/GenesisForgeAI/scripts/init-project.sh
+bash scripts/init-project.sh
 ```
 
 What `init-project` does:
