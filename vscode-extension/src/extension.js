@@ -31,8 +31,9 @@ function loadPrompt(name) {
 }
 
 class FileListProvider {
-  constructor(relativeDir) {
+  constructor(relativeDir, entryType = 'file') {
     this.relativeDir = relativeDir;
+    this.entryType = entryType;
   }
 
   getTreeItem(element) {
@@ -45,7 +46,12 @@ class FileListProvider {
     const dir = path.join(root, this.relativeDir);
     if (!fs.existsSync(dir)) return [];
     return fs.readdirSync(dir)
-      .filter((name) => fs.statSync(path.join(dir, name)).isFile())
+      .filter((name) => {
+        const fullPath = path.join(dir, name);
+        return this.entryType === 'directory'
+          ? fs.statSync(fullPath).isDirectory()
+          : fs.statSync(fullPath).isFile();
+      })
       .map((name) => new vscode.TreeItem(name, vscode.TreeItemCollapsibleState.None));
   }
 }
@@ -88,9 +94,30 @@ class DocsStatusProvider {
 
 function activate(context) {
   context.subscriptions.push(
+    vscode.commands.registerCommand('genesisForge.setupProject', async () => {
+      const choice = await vscode.window.showQuickPick(
+        [
+          { label: 'Init New Project', description: 'Bootstrap a new GenesisForgeAI project', action: 'init' },
+          { label: 'Migrate Existing Project', description: 'Add GenesisForgeAI dual-path structure to existing project', action: 'migrate' }
+        ],
+        { placeHolder: 'What would you like to do?' }
+      );
+      
+      if (!choice) return;
+      
+      if (choice.action === 'init') {
+        vscode.commands.executeCommand('genesisForge.initProject');
+      } else if (choice.action === 'migrate') {
+        vscode.commands.executeCommand('genesisForge.migrateProject');
+      }
+    }),
     vscode.commands.registerCommand('genesisForge.initProject', () => {
       loadPrompt('init-project.prompt.md');
       runInRoot('bash scripts/init-project.sh');
+    }),
+    vscode.commands.registerCommand('genesisForge.migrateProject', () => {
+      vscode.window.showInformationMessage('Migrating project to dual-path structure...');
+      runInRoot('bash scripts/migrate-to-dual-path.sh');
     }),
     vscode.commands.registerCommand('genesisForge.runAgent', async () => {
       const prompt = loadPrompt('run-agent.prompt.md');
@@ -113,8 +140,8 @@ function activate(context) {
   );
 
   vscode.window.registerTreeDataProvider('genesisForge.projectManifest', new ManifestProvider());
-  vscode.window.registerTreeDataProvider('genesisForge.agents', new FileListProvider('instructions/agents'));
-  vscode.window.registerTreeDataProvider('genesisForge.skills', new FileListProvider('instructions/skills'));
+  vscode.window.registerTreeDataProvider('genesisForge.agents', new FileListProvider('.github/agents'));
+  vscode.window.registerTreeDataProvider('genesisForge.skills', new FileListProvider('.github/skills', 'directory'));
   vscode.window.registerTreeDataProvider('genesisForge.docsStatus', new DocsStatusProvider());
 }
 

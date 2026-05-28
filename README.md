@@ -41,7 +41,10 @@ Path: `/vscode-extension`
 
 Commands:
 
-- `GenesisForgeAI: Init Project`
+- `GenesisForgeAI: Setup Project` (Init or Migrate) ← **start here**
+  - Guides you to either bootstrap a new project or migrate an existing one
+- `GenesisForgeAI: Init Project` — bootstrap a new project from scratch
+- `GenesisForgeAI: Migrate Existing Project` — add dual-path agent/skill structure to an existing project
 - `GenesisForgeAI: Run Agent`
 - `GenesisForgeAI: Run Skill`
 - `GenesisForgeAI: Generate Documentation`

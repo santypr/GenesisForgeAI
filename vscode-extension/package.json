@@ -10,7 +10,9 @@
   "categories": ["Other"],
   "main": "./src/extension.js",
   "activationEvents": [
+    "onCommand:genesisForge.setupProject",
     "onCommand:genesisForge.initProject",
+    "onCommand:genesisForge.migrateProject",
     "onCommand:genesisForge.runAgent",
     "onCommand:genesisForge.runSkill",
     "onCommand:genesisForge.generateDocumentation",
@@ -18,7 +20,9 @@
   ],
   "contributes": {
     "commands": [
-      { "command": "genesisForge.initProject", "title": "GenesisForgeAI: Init Project" },
+      { "command": "genesisForge.setupProject", "title": "GenesisForgeAI: Setup Project (Init or Migrate)" },
+      { "command": "genesisForge.initProject", "title": "GenesisForgeAI: Init New Project" },
+      { "command": "genesisForge.migrateProject", "title": "GenesisForgeAI: Migrate Existing Project" },
       { "command": "genesisForge.runAgent", "title": "GenesisForgeAI: Run Agent" },
       { "command": "genesisForge.runSkill", "title": "GenesisForgeAI: Run Skill" },
       { "command": "genesisForge.generateDocumentation", "title": "GenesisForgeAI: Generate Documentation" },
