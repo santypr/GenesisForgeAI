@@ -36,6 +36,7 @@
   "activationEvents": [
     "onCommand:genesisForge.bootstrap",
     "onCommand:genesisForge.initProject",
+    "onCommand:genesisForge.addTechnologies",
     "onCommand:genesisForge.runAgent",
     "onCommand:genesisForge.runSkill",
     "onCommand:genesisForge.generateDocumentation",
@@ -45,6 +46,7 @@
     "commands": [
       { "command": "genesisForge.bootstrap", "title": "GenesisForgeAI" },
       { "command": "genesisForge.initProject", "title": "GenesisForgeAI: Init Project" },
+      { "command": "genesisForge.addTechnologies", "title": "GenesisForgeAI: Add Technologies" },
       { "command": "genesisForge.runAgent", "title": "GenesisForgeAI: Run Agent" },
       { "command": "genesisForge.runSkill", "title": "GenesisForgeAI: Run Skill" },
       { "command": "genesisForge.generateDocumentation", "title": "GenesisForgeAI: Generate Documentation" },

@@ -53,10 +53,17 @@ Commands:
 
 - `GenesisForgeAI`
 - `GenesisForgeAI: Init Project`
+- `GenesisForgeAI: Add Technologies`
 - `GenesisForgeAI: Run Agent`
 - `GenesisForgeAI: Run Skill`
 - `GenesisForgeAI: Generate Documentation`
 - `GenesisForgeAI: Create Task Folder`
+
+**In-place detection:** When `Init Project` runs it automatically checks for an existing `project.json`, `.genesisforge/registration.json`, or detectable technology stack (React+TS, .NET, Flutter). If found, you are asked whether to initialize GenesisForge directly in the workspace folder rather than creating a new subfolder under `generated-projects/`.
+
+**Multi-select technologies:** The technology picker is a multi-select quick pick. Detected technologies are pre-checked. Selecting React+TS together with .NET API automatically resolves the primary type to Full-stack for legacy compatibility. The `project.json` manifest records both `technologies[]` / `templateSources[]` arrays and the legacy `type` / `templateSource` scalar fields.
+
+**Add Technologies:** Run `GenesisForgeAI: Add Technologies` at any time to extend an initialized project with additional technology templates without re-running the full bootstrap.
 
 The extension also exposes UI panels for:
 
