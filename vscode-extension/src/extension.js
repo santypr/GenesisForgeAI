@@ -5,11 +5,11 @@ const path = require('path');
 let extensionRoot = '';
 
 const TECHNOLOGY_OPTIONS = [
-  { label: 'React+TS', template: 'react-template' },
-  { label: '.NET API', template: 'dotnet-api-template' },
-  { label: 'Flutter', template: 'flutter-template' },
-  { label: 'Full-stack', template: 'fullstack-template' },
-  { label: 'Other', template: 'documentation-template' }
+  { label: 'React+TS', template: 'react-template', technologies: ['React+TS'] },
+  { label: '.NET API', template: 'dotnet-api-template', technologies: ['.NET API'] },
+  { label: 'Flutter', template: 'flutter-template', technologies: ['Flutter'] },
+  { label: 'Full-stack', template: 'fullstack-template', technologies: ['React+TS', '.NET API'] },
+  { label: 'Other', template: 'documentation-template', technologies: ['Other'] }
 ];
 
 function workspaceRoot() {
@@ -37,9 +37,24 @@ function listDirectoryEntries(dirPath) {
   return fs.readdirSync(dirPath, { withFileTypes: true });
 }
 
-function hasFileMatching(dirPath, predicate) {
+function hasFileMatching(dirPath, predicate, maxDepth = 0, currentDepth = 0) {
   if (!fs.existsSync(dirPath)) return false;
-  return fs.readdirSync(dirPath).some(predicate);
+  for (const entry of listDirectoryEntries(dirPath)) {
+    if (entry.name === '.git' || entry.name === 'node_modules') {
+      continue;
+    }
+
+    const entryPath = path.join(dirPath, entry.name);
+    if (predicate(entry.name, entryPath, entry, currentDepth)) {
+      return true;
+    }
+
+    if (entry.isDirectory() && currentDepth < maxDepth && hasFileMatching(entryPath, predicate, maxDepth, currentDepth + 1)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function copyDirectoryIfMissing(sourceDir, targetDir) {
@@ -66,13 +81,16 @@ function loadPrompt(name) {
   return fs.readFileSync(promptPath, 'utf8');
 }
 
-async function askYesNo(question) {
+async function askYesNo(question, currentValue) {
+  const placeHolder = typeof currentValue === 'boolean'
+    ? `${question} (current: ${currentValue ? 'Yes' : 'No'})`
+    : question;
   const answer = await vscode.window.showQuickPick(
     [
       { label: 'Yes', value: true },
       { label: 'No', value: false }
     ],
-    { placeHolder: question }
+    { placeHolder }
   );
   if (!answer) {
     throw new Error('Operation cancelled by user.');
@@ -139,140 +157,171 @@ function createTaskFolder(taskDir) {
 function detectWorkspaceTechnologies(root) {
   const detected = [];
 
-  // React+TS: package.json with react/react-dom dependency plus TypeScript indicators
-  const pkgJsonPath = path.join(root, 'package.json');
-  if (fs.existsSync(pkgJsonPath)) {
-    let pkg = null;
-    try { pkg = readJson(pkgJsonPath); } catch { /* malformed package.json — skip */ }
-    if (pkg) {
-      const allDeps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
-      const hasReact = 'react' in allDeps || 'react-dom' in allDeps;
-      const hasTs =
-        'typescript' in allDeps ||
-        fs.existsSync(path.join(root, 'tsconfig.json')) ||
-        hasFileMatching(path.join(root, 'src'), (f) => f.endsWith('.tsx') || f.endsWith('.ts'));
-      if (hasReact && hasTs) {
-        detected.push('React+TS');
-      }
-    }
+  const packageJsonPath = path.join(root, 'package.json');
+  const packageJsonContent = fs.existsSync(packageJsonPath)
+    ? fs.readFileSync(packageJsonPath, 'utf8')
+    : '';
+  const hasReactDependency = /"(react|react-dom)"\s*:/.test(packageJsonContent);
+  const hasTypeScriptHint = fs.existsSync(path.join(root, 'tsconfig.json'))
+    || fs.existsSync(path.join(root, 'vite.config.ts'))
+    || hasFileMatching(root, (name) => name.endsWith('.tsx') || name.endsWith('.ts'), 2);
+  const hasReactEntrypoint = fs.existsSync(path.join(root, 'src', 'main.tsx'))
+    || fs.existsSync(path.join(root, 'src', 'App.tsx'))
+    || fs.existsSync(path.join(root, 'app', 'page.tsx'));
+
+  if ((hasReactDependency && hasTypeScriptHint) || hasReactEntrypoint) {
+    detected.push('React+TS');
   }
 
-  // .NET: .csproj / .sln file or Program.cs at root
   if (
-    hasFileMatching(root, (f) => f.endsWith('.csproj') || f.endsWith('.sln')) ||
-    fs.existsSync(path.join(root, 'Program.cs'))
+    hasFileMatching(root, (name) => name.endsWith('.csproj') || name.endsWith('.sln'), 4)
+    || hasFileMatching(root, (name, entryPath) => name === 'Program.cs' && !entryPath.includes(`${path.sep}Controllers${path.sep}`), 4)
   ) {
     detected.push('.NET API');
   }
 
-  // Flutter: pubspec.yaml or lib/main.dart
   if (
-    fs.existsSync(path.join(root, 'pubspec.yaml')) ||
-    fs.existsSync(path.join(root, 'lib', 'main.dart'))
+    hasFileMatching(root, (name) => name === 'pubspec.yaml', 4)
+    || hasFileMatching(root, (name, entryPath) => name === 'main.dart' && entryPath.endsWith(`${path.sep}lib${path.sep}main.dart`), 4)
   ) {
     detected.push('Flutter');
-  }
-
-  // Promote React+TS + .NET API co-presence to Full-stack
-  if (detected.includes('React+TS') && detected.includes('.NET API')) {
-    detected.push('Full-stack');
   }
 
   return detected;
 }
 
-function inferProjectName(root) {
-  const pkgJsonPath = path.join(root, 'package.json');
-  if (fs.existsSync(pkgJsonPath)) {
-    let pkg = null;
-    try { pkg = readJson(pkgJsonPath); } catch { /* ignore */ }
-    if (pkg && pkg.name) return pkg.name;
+function inferProjectName(targetDir, existingManifest) {
+  if (existingManifest?.name) {
+    return existingManifest.name;
   }
-  return path.basename(root) || 'genesis-project';
+
+  return path.basename(targetDir) || 'genesis-project';
 }
 
 function shouldInitializeCurrentWorkspace(root) {
-  if (fs.existsSync(path.join(root, 'project.json'))) return true;
-  if (fs.existsSync(path.join(root, '.genesisforge', 'registration.json'))) return true;
-  if (detectWorkspaceTechnologies(root).length > 0) return true;
-  // Non-empty workspace (ignoring common meta directories)
-  const ignoredDirs = new Set(['.git', '.github', '.claude', '.genesisforge', 'node_modules', '.vscode']);
-  const entries = fs.existsSync(root)
-    ? fs.readdirSync(root).filter((f) => !ignoredDirs.has(f))
-    : [];
-  return entries.length > 0;
-}
-
-function normalizeTechnologySelection(selections) {
-  const technologies = selections.map((s) => s.label);
-  const templateSources = selections.map((s) => s.template);
-
-  let type, templateSource;
-  if (selections.length === 1) {
-    type = selections[0].label;
-    templateSource = selections[0].template;
-  } else if (technologies.includes('React+TS') && technologies.includes('.NET API')) {
-    // React+TS and .NET API together → Full-stack is the primary
-    type = 'Full-stack';
-    templateSource = 'fullstack-template';
-  } else {
-    // Use the first non-Other selection as primary for legacy compatibility
-    const primary = selections.find((s) => s.label !== 'Other') || selections[0];
-    type = primary.label;
-    templateSource = primary.template;
+  if (fs.existsSync(path.join(root, 'project.json')) || fs.existsSync(path.join(root, '.genesisforge', 'registration.json'))) {
+    return true;
   }
 
-  return { technologies, templateSources, type, templateSource };
-}
-
-async function pickTechnologies(preselected = []) {
-  const items = TECHNOLOGY_OPTIONS.map((opt) => ({
-    ...opt,
-    picked: preselected.includes(opt.label)
-  }));
-  const chosen = await vscode.window.showQuickPick(items, {
-    canPickMany: true,
-    placeHolder: 'Select all applicable technologies (multi-select)'
-  });
-  return chosen || null;
-}
-
-function manifestTechnologies(manifest) {
-  if (Array.isArray(manifest.technologies)) return manifest.technologies;
-  if (manifest.type) return [manifest.type];
-  return [];
-}
-
-function manifestTemplateSources(manifest) {
-  if (Array.isArray(manifest.templateSources)) return manifest.templateSources;
-  if (manifest.templateSource) return [manifest.templateSource];
-  return [];
-}
-
-function resolveWorkspaceProjectRoot(wsRoot) {
-  if (!wsRoot) return wsRoot;
-  // Workspace root is already a GenesisForge project
-  if (
-    fs.existsSync(path.join(wsRoot, 'project.json')) ||
-    fs.existsSync(path.join(wsRoot, '.genesisforge', 'registration.json'))
-  ) {
-    return wsRoot;
+  if (detectWorkspaceTechnologies(root).length > 0) {
+    return true;
   }
-  // Search generated-projects subdirectories (return first match)
-  const genDir = path.join(wsRoot, 'generated-projects');
-  if (fs.existsSync(genDir)) {
-    for (const entry of listDirectoryEntries(genDir)) {
-      if (!entry.isDirectory()) continue;
-      const candidate = path.join(genDir, entry.name);
-      if (
-        fs.existsSync(path.join(candidate, 'project.json')) ||
-        fs.existsSync(path.join(candidate, '.genesisforge', 'registration.json'))
-      ) {
-        return candidate;
-      }
+
+  return listDirectoryEntries(root).filter((entry) => entry.name !== '.git').length > 0;
+}
+
+function normalizeTechnologySelection(selectedItems) {
+  const selectedLabels = new Set(selectedItems.map((item) => item.label));
+  const technologies = new Set();
+
+  for (const item of selectedItems) {
+    for (const technology of item.technologies ?? [item.label]) {
+      technologies.add(technology);
     }
   }
-  return wsRoot;
+
+  if (technologies.size > 1 && technologies.has('Other')) {
+    technologies.delete('Other');
+  }
+
+  const templateSources = new Set();
+  const hasFullStack = selectedLabels.has('Full-stack');
+
+  for (const item of selectedItems) {
+    if (hasFullStack && (item.label === 'React+TS' || item.label === '.NET API')) {
+      continue;
+    }
+
+    if (technologies.size > 1 && item.label === 'Other') {
+      continue;
+    }
+
+    templateSources.add(item.template);
+  }
+
+  if (templateSources.size === 0) {
+    templateSources.add('documentation-template');
+  }
+
+  return {
+    technologies: [...technologies],
+    templateSources: [...templateSources]
+  };
+}
+
+async function pickTechnologies(
+  pickedLabels = [],
+  placeHolder = 'Select one or more technologies for this project',
+  pickedTemplateSources = []
+) {
+  const selectedItems = await vscode.window.showQuickPick(
+    TECHNOLOGY_OPTIONS.map((option) => ({
+      ...option,
+      picked: pickedLabels.includes(option.label)
+        || pickedTemplateSources.includes(option.template)
+        || (option.label !== 'Full-stack' && option.technologies.some((technology) => pickedLabels.includes(technology)))
+    })),
+    {
+      canPickMany: true,
+      placeHolder
+    }
+  );
+
+  if (!selectedItems) {
+    return undefined;
+  }
+
+  if (selectedItems.length === 0) {
+    throw new Error('Select at least one technology.');
+  }
+
+  return normalizeTechnologySelection(selectedItems);
+}
+
+function manifestTechnologies(manifest = {}) {
+  if (Array.isArray(manifest.technologies) && manifest.technologies.length > 0) {
+    return manifest.technologies;
+  }
+
+  if (typeof manifest.type === 'string' && manifest.type && manifest.type !== 'Multi-tech') {
+    return [manifest.type];
+  }
+
+  return [];
+}
+
+function manifestTemplateSources(manifest = {}) {
+  if (Array.isArray(manifest.templateSources) && manifest.templateSources.length > 0) {
+    return manifest.templateSources;
+  }
+
+  if (typeof manifest.templateSource === 'string' && manifest.templateSource && manifest.templateSource !== 'multiple') {
+    return [manifest.templateSource];
+  }
+
+  return [];
+}
+
+function resolveWorkspaceProjectRoot(root) {
+  if (!root) {
+    return root;
+  }
+
+  if (fs.existsSync(path.join(root, 'project.json'))) {
+    return root;
+  }
+
+  const generatedProjectsDir = path.join(root, 'generated-projects');
+  if (!fs.existsSync(generatedProjectsDir)) {
+    return root;
+  }
+
+  const projects = listDirectoryEntries(generatedProjectsDir)
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(generatedProjectsDir, entry.name))
+    .filter((projectDir) => fs.existsSync(path.join(projectDir, 'project.json')));
+
+  return projects.length === 1 ? projects[0] : root;
 }
 
 function readRegistration(projectRoot) {
@@ -281,15 +330,56 @@ function readRegistration(projectRoot) {
   return readJson(regPath);
 }
 
-function buildProjectManifest(projectName, norm, existing = {}) {
+function buildProjectManifest(projectName, manifestData, previousManifest = {}) {
   return {
-    ...existing,
+    ...previousManifest,
     name: projectName,
-    type: norm.type,
-    technologies: norm.technologies,
-    templateSource: norm.templateSource,
-    templateSources: norm.templateSources
+    type: manifestData.technologies.length === 1 ? manifestData.technologies[0] : 'Multi-tech',
+    technologies: manifestData.technologies,
+    cleanArchitecture: typeof manifestData.cleanArchitecture === 'boolean'
+      ? manifestData.cleanArchitecture
+      : previousManifest.cleanArchitecture,
+    automatedDocumentation: typeof manifestData.automatedDocumentation === 'boolean'
+      ? manifestData.automatedDocumentation
+      : previousManifest.automatedDocumentation,
+    ciCdTemplates: typeof manifestData.ciCdTemplates === 'boolean'
+      ? manifestData.ciCdTemplates
+      : previousManifest.ciCdTemplates,
+    testingTemplates: typeof manifestData.testingTemplates === 'boolean'
+      ? manifestData.testingTemplates
+      : previousManifest.testingTemplates,
+    infrastructureTemplates: typeof manifestData.infrastructureTemplates === 'boolean'
+      ? manifestData.infrastructureTemplates
+      : previousManifest.infrastructureTemplates,
+    templateSource: manifestData.templateSources.length === 1 ? manifestData.templateSources[0] : 'multiple',
+    templateSources: manifestData.templateSources
   };
+}
+
+function ensureGenesisForgeProject(targetDir, projectName, manifestData, previousManifest = {}) {
+  const docsDir = path.join(targetDir, 'docs');
+  const bundleDir = resourcesRoot();
+  const instructionsDir = path.join(bundleDir, 'instructions');
+
+  ensureDirectory(targetDir);
+  for (const templateSource of manifestData.templateSources) {
+    copyDirectoryIfMissing(path.join(bundleDir, 'templates', templateSource), targetDir);
+  }
+  copyDirectoryIfMissing(instructionsDir, path.join(targetDir, 'instructions'));
+  ensureDocumentationScaffold(docsDir);
+  ensureDirectory(path.join(targetDir, '.genesisforge'));
+
+  writeJson(path.join(targetDir, 'project.json'), buildProjectManifest(projectName, manifestData, previousManifest));
+
+  writeJson(path.join(targetDir, '.genesisforge', 'registration.json'), {
+    projectManifest: 'project.json',
+    agentsPath: 'instructions/agents',
+    skillsPath: 'instructions/skills',
+    docsPath: 'docs',
+    registeredAt: new Date().toISOString()
+  });
+
+  createTaskFolder(path.join(docsDir, 'tasks', 'task-example'));
 }
 
 async function bootstrapProject() {
@@ -301,14 +391,25 @@ async function bootstrapProject() {
 
   loadPrompt('init-project.prompt.md');
 
-  const detectedTechs = detectWorkspaceTechnologies(root);
+  const workspaceProjectRoot = resolveWorkspaceProjectRoot(root);
+  const workspaceManifestPath = path.join(workspaceProjectRoot, 'project.json');
+  const workspaceManifest = fs.existsSync(workspaceManifestPath)
+    ? readJson(workspaceManifestPath)
+    : {};
+  const detectedTechs = [
+    ...new Set([
+      ...manifestTechnologies(workspaceManifest),
+      ...detectWorkspaceTechnologies(root)
+    ])
+  ];
   const initInPlace = shouldInitializeCurrentWorkspace(root);
 
   let targetDir;
 
   if (initInPlace) {
     const useInPlace = await askYesNo(
-      'An existing project or technology stack was detected. Initialize GenesisForge in this workspace folder directly?'
+      'An existing project or technology stack was detected. Initialize GenesisForge in this workspace folder directly?',
+      workspaceProjectRoot === root ? true : undefined
     );
     if (useInPlace) {
       targetDir = root;
@@ -319,66 +420,46 @@ async function bootstrapProject() {
     const projectNameInput = await vscode.window.showInputBox({
       prompt: 'Project name',
       placeHolder: 'genesis-project',
-      value: inferProjectName(root)
+      value: inferProjectName(workspaceProjectRoot, workspaceManifest)
     });
     if (projectNameInput === undefined) return;
     const projectName = projectNameInput.trim() || 'genesis-project';
     targetDir = path.join(root, 'generated-projects', projectName);
   }
 
-  const projectName = targetDir === root ? inferProjectName(root) : path.basename(targetDir);
+  const existingManifestPath = path.join(targetDir, 'project.json');
+  const existingManifest = fs.existsSync(existingManifestPath)
+    ? readJson(existingManifestPath)
+    : (targetDir === workspaceProjectRoot ? workspaceManifest : {});
+  const projectName = inferProjectName(targetDir, existingManifest);
 
-  const selections = await pickTechnologies(detectedTechs);
-  if (!selections || selections.length === 0) return;
+  const selectedTechnologies = await pickTechnologies(
+    [
+      ...new Set([
+        ...manifestTechnologies(existingManifest),
+        ...detectedTechs
+      ])
+    ],
+    'Select one or more technologies for this project',
+    manifestTemplateSources(existingManifest)
+  );
+  if (!selectedTechnologies) return;
 
-  const norm = normalizeTechnologySelection(selections);
-
-  const cleanArchitecture = await askYesNo('Do you want Clean Architecture?');
-  const automatedDocumentation = await askYesNo('Do you want automated documentation generation?');
-  const ciCdTemplates = await askYesNo('Do you want CI/CD templates?');
-  const testingTemplates = await askYesNo('Do you want testing templates?');
-  const infrastructureTemplates = await askYesNo('Do you want infrastructure templates (IaC)?');
-
-  const docsDir = path.join(targetDir, 'docs');
-  const bundleDir = resourcesRoot();
-  const instructionsDir = path.join(bundleDir, 'instructions');
-  const existingManifest = fs.existsSync(path.join(targetDir, 'project.json'))
-    ? readJson(path.join(targetDir, 'project.json'))
-    : {};
+  const cleanArchitecture = await askYesNo('Do you want Clean Architecture?', existingManifest.cleanArchitecture);
+  const automatedDocumentation = await askYesNo('Do you want automated documentation generation?', existingManifest.automatedDocumentation);
+  const ciCdTemplates = await askYesNo('Do you want CI/CD templates?', existingManifest.ciCdTemplates);
+  const testingTemplates = await askYesNo('Do you want testing templates?', existingManifest.testingTemplates);
+  const infrastructureTemplates = await askYesNo('Do you want infrastructure templates (IaC)?', existingManifest.infrastructureTemplates);
 
   try {
-    ensureDirectory(targetDir);
-
-    for (const tmpl of norm.templateSources) {
-      const templateDir = path.join(bundleDir, 'templates', tmpl);
-      if (fs.existsSync(templateDir)) {
-        copyDirectoryIfMissing(templateDir, targetDir);
-      }
-    }
-
-    copyDirectoryIfMissing(instructionsDir, path.join(targetDir, 'instructions'));
-    ensureDocumentationScaffold(docsDir);
-    ensureDirectory(path.join(targetDir, '.genesisforge'));
-
-    writeJson(path.join(targetDir, 'project.json'), {
-      ...buildProjectManifest(projectName, norm, existingManifest),
+    ensureGenesisForgeProject(targetDir, projectName, {
+      ...selectedTechnologies,
       cleanArchitecture,
       automatedDocumentation,
       ciCdTemplates,
       testingTemplates,
       infrastructureTemplates
-    });
-
-    writeJson(path.join(targetDir, '.genesisforge', 'registration.json'), {
-      projectManifest: 'project.json',
-      agentsPath: 'instructions/agents',
-      skillsPath: 'instructions/skills',
-      docsPath: 'docs',
-      registeredAt: new Date().toISOString()
-    });
-
-    createTaskFolder(path.join(docsDir, 'tasks', 'task-example'));
-
+    }, existingManifest);
     vscode.window.showInformationMessage(`GenesisForgeAI project ready at: ${targetDir}`);
   } catch (error) {
     vscode.window.showErrorMessage(error.message);
@@ -398,26 +479,24 @@ async function addTechnologiesToProject() {
     vscode.window.showErrorMessage('No project.json found. Run GenesisForgeAI: Init Project first.');
     return;
   }
-
   const existing = readJson(manifestPath);
-  const currentTechs = manifestTechnologies(existing);
-
-  const selections = await pickTechnologies(currentTechs);
-  if (!selections || selections.length === 0) return;
-
-  const norm = normalizeTechnologySelection(selections);
-  const bundleDir = resourcesRoot();
+  const selections = await pickTechnologies(
+    manifestTechnologies(existing),
+    'Select technologies to keep or add for this project',
+    manifestTemplateSources(existing)
+  );
+  if (!selections) return;
 
   try {
-    for (const tmpl of norm.templateSources) {
-      const templateDir = path.join(bundleDir, 'templates', tmpl);
-      if (fs.existsSync(templateDir)) {
-        copyDirectoryIfMissing(templateDir, projectRoot);
-      }
-    }
-
-    writeJson(manifestPath, buildProjectManifest(existing.name, norm, existing));
-    vscode.window.showInformationMessage(`Technologies updated: ${norm.technologies.join(', ')}`);
+    ensureGenesisForgeProject(projectRoot, inferProjectName(projectRoot, existing), {
+      ...selections,
+      cleanArchitecture: existing.cleanArchitecture,
+      automatedDocumentation: existing.automatedDocumentation,
+      ciCdTemplates: existing.ciCdTemplates,
+      testingTemplates: existing.testingTemplates,
+      infrastructureTemplates: existing.infrastructureTemplates
+    }, existing);
+    vscode.window.showInformationMessage(`Technologies updated: ${selections.technologies.join(', ')}`);
   } catch (error) {
     vscode.window.showErrorMessage(error.message);
   }
